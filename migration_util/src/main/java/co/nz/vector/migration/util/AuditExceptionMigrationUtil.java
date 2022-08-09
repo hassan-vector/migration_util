@@ -9,12 +9,9 @@ import software.amazon.awssdk.services.dynamodb.model.*;
 import java.time.OffsetDateTime;
 import java.util.*;
 
-import static java.time.format.DateTimeFormatter.ISO_OFFSET_DATE;
-import static java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-
-
 public class AuditExceptionMigrationUtil {
 
+    static final String DEVICE_ID_VALUE = "999999999-vector-30-min-electricity";
 
     public static void main(String[] args) {
 
@@ -47,7 +44,7 @@ public class AuditExceptionMigrationUtil {
 
        records.forEach(i -> updateTableItem(ddbClient, tableName,"AuditId",
                 i.getAuditId(),new String[]{"UnitOfWorkDate", "UnitOfWorkDateTime"},
-               new String[]{ getUnitOfWorkDate(i.getUnitOfWorkDateTime()) ,i.getUnitOfWorkDateTime()}));
+                 getUnitOfWorkDate(i.getUnitOfWorkDateTime())));
 
         ddbClient.close();
         System.out.println("---- END TIME:" + new Date());
@@ -60,11 +57,15 @@ public class AuditExceptionMigrationUtil {
         Map<String, AttributeValue> lastKeyEvaluated = null;
 
         try {
+            Map<String, AttributeValue> deviceAttributeVal = new HashMap<String, AttributeValue>();
+            deviceAttributeVal.put(":id", AttributeValue.builder().s(DEVICE_ID_VALUE).build());
 
             do {
                 ScanRequest scanRequest = ScanRequest.builder()
                         .tableName(tableName)
                         .filterExpression("attribute_not_exists(UnitOfWorkDateTime)")
+                        //.filterExpression("DeviceId = :id")
+                        //.expressionAttributeValues(deviceAttributeVal)
                         .exclusiveStartKey(lastKeyEvaluated)
                         .build();
 
@@ -99,7 +100,7 @@ public class AuditExceptionMigrationUtil {
                                        String key,
                                        String keyVal,
                                        String[] name,
-                                       String[] updateVal){
+                                       String updateVal){
 
         HashMap<String,AttributeValue> itemKey = new HashMap<>();
         itemKey.put(key, AttributeValue.builder()
@@ -108,12 +109,12 @@ public class AuditExceptionMigrationUtil {
 
         HashMap<String,AttributeValueUpdate> updatedValues = new HashMap<>();
         updatedValues.put(name[0], AttributeValueUpdate.builder()
-                .value(AttributeValue.builder().s(updateVal[0]).build())
+                .value(AttributeValue.builder().s(updateVal).build())
                 .action(AttributeAction.PUT)
                 .build());
 
         updatedValues.put(name[1], AttributeValueUpdate.builder()
-                .value(AttributeValue.builder().s(updateVal[1]).build())
+                .value(AttributeValue.builder().s(updateVal).build())
                 .action(AttributeAction.PUT)
                 .build());
 
@@ -132,6 +133,9 @@ public class AuditExceptionMigrationUtil {
     }
 
     private static String getUnitOfWorkDate(String date) {
-        return ISO_OFFSET_DATE.format((OffsetDateTime.from(ISO_OFFSET_DATE_TIME.parse(date))));
+        OffsetDateTimeConverter converter = new OffsetDateTimeConverter();
+        OffsetDateTime offsetDate = converter.unconvert(date);
+        String resultDate = converter.convert( offsetDate);
+        return resultDate;
     }
 }
